@@ -1,0 +1,101 @@
+---
+title: "False Discovery Rates"
+author: "Stefan Eng"
+date: "3/24/2021"
+output:
+  beamer_presentation:
+    slide_level: 2
+    md_extensions: +grid_tables
+  html_document: default
+bibliography: references.bib
+---
+
+```{r, setup, echo=FALSE, warning = FALSE, message = FALSE, results = 'hide'}
+library(BoutrosFDR)
+library(kableExtra)
+library(BoutrosLab.plotting.general)
+
+set.seed(13)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center', out.width = '90%', fig.pos = 'H');
+
+# CB Palette like ESL
+cbPalette <- c(
+  "#999999", "#E69F00", "#56B4E9", "#009E73",
+  "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+## Overview
+
+## Background
+  - Random variable
+  - CDF
+  - iid
+
+## Random Variable
+  - A random variable is a mapping (a function) $X : \Omega \to \mathbb R$ that assigns a real number $X(\omega)$ to each outcome $\omega$.
+  - Example: Flip a coin and let $X(\omega)$ be the 
+  - The sample space is $\Omega = \{\{ 1, 1\}, \{ 1, 2\}, \{ 2, 1\}, \ldots \}$
+  - $X(\{3,4\}) = 7$
+
+```{r}
+dice <- data.frame(die1 = unlist(lapply(1:6, rep, times = 6)), die2 = rep(1:6, 6))
+dice$sum <- rowSums(dice)
+dice <- dice[order(dice$sum), ]
+dice
+```
+
+## CDF
+  For a random variable $X$, the **cumulative distribution function** (CDF), $F_X : \mathbb R \to [0,1]$ is
+  $$
+  F_X(x) = P(X \leq x)
+  $$
+
+## Notation
+  - If $X \sim F$ then we say that $X$ has distribution $F$.
+  - For example, $X \sim \exp(\lambda)$ mean that $X$ is exponentially distributed with
+  $$
+  F(x) = \begin{cases}
+    1 - e^{-\lambda x} & x \geq 0\\
+    0 & x < 0
+  \end{cases}
+  $$
+  
+
+
+## CDF Examples
+```{r}
+BoutrosLab.plotting.general::
+```
+
+## Sampling Distribution
+  - Let $X_1, \ldots, \X_n$  be iid random variables
+  - A function of the data is called a **statistic**
+  - The mean of these random variables is an example of a statistic
+  $$
+  \overline{X}_n = \frac{1}{n} \sum_{i = 1}^n X_i
+  $$
+  - $\overline{X}_n$ is itself a random variable, and thus has a distribution (called the sampling distribution of the statistic).
+  - Example: If $X_1, \ldots, X_n \sim N(\mu,\sigma)$ then $\overline{X}_n \sim N \left(\mu, \frac{\sigma}{\sqrt{n}} \right)$
+
+## Statistical Inference
+  - Given a sample $X_1, \ldots, X_n \sim F$ we want to infer the distribution $F$.
+  - We approximate $F$ using a statistical model, which is a set of distributions
+    - Parameteric models use a set of distributions that can be parameterized by a finite set of parameters.
+    - Example: Two-parameter model for a set of Gaussians
+    - Non-parametric models 
+
+## Empirical Distribution Function
+  - Let $X_1, \ldots, X_n$ be iid random variables
+  
+## Example
+```{r}
+plot(ecdf(cars$dist), verticals = TRUE)
+# Plot the ticks at the observations
+rug(cars$dist)
+```
+
+
+```{r}
+rexp(10)
+```
