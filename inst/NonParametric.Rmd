@@ -86,8 +86,16 @@ BoutrosLab.plotting.general::
     - Non-parametric models 
 
 ## Empirical Distribution Function
-  - Let $X_1, \ldots, X_n$ be iid random variables
-  
+  - Let $X_1, \ldots, X_n \sim F$ be iid random variables
+  - Note that this means that $X$ has a distribution function $F$.
+  - We can estimate $F$ from the data by using the empirical distribution function $\hat{F}_n$.
+  - This distribution $\hat{F}_n$ puts mass of 1/n on each data point
+
+## Example - Cars
+```{r}
+hist(cars$dist)
+```
+
 ## Example
 ```{r}
 plot(ecdf(cars$dist), verticals = TRUE)
@@ -95,7 +103,42 @@ plot(ecdf(cars$dist), verticals = TRUE)
 rug(cars$dist)
 ```
 
-
+## Bootstrap
+  1. Compute $T_n = g(X_1, \ldots, X_n)$, our statistic of interest.
+  1. Draw a sample $X_1^*, \ldots, X_n^* \sim \hat{F}_n$
+    - All this means is to sample $n$ times with replacement from the original data $X_1, \ldots, X_n$.
+  2. Compute our statistic of interest $T_n^* = g(X_1^*, \ldots, X_n^*)$
+  3. Repeat $B$ times, to get $T_{n,1}^*, \ldots, T_{n,B}^*$
+  4. Compute the variance of the statistic $v_{\text{boot}}$, and standard error $\hat{\text{se}}_{\text{boot}} = \sqrt{v_{\text{boot}}}$
+  
+## Approximations
+$$
+\operatorname{Var}_F(T_n)  \approx \operatorname{Var}_{\hat{F}_n} (T_n) \approx v_{\text{boot}}
+$$
+## Example
 ```{r}
-rexp(10)
+x <- rexp(15)
+x.range <- seq(0, 8, length.out = 1000)
+x.F <- pexp(x.range)
+x.ecdf <- ecdf(x)
+
+plot(ecdf(x), verticals = TRUE)
+rug(x)
+lines(x.range, x.F, lty=2)
+```
+
+## Bootstrap confidence intervals
+https://blog.methodsconsultants.com/posts/understanding-bootstrap-confidence-interval-output-from-the-r-boot-package/
+
+## Bootstrap correlation coefficient
+```{r}
+library(boot)
+boot.cor <- function(data, indices) {
+  d <- data[indices,]
+  cor(d$wt, d$mpg, method = "spearman")
+}
+
+# cor(mtcars$wt, mtcars$mpg)
+results <- boot(data=mtcars, statistic=boot.cor, R=1000)
+boot.ci(results, type = "bca")
 ```
