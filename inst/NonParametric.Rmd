@@ -1,7 +1,7 @@
 ---
-title: "False Discovery Rates"
+title: "Bootstrapping"
 author: "Stefan Eng"
-date: "3/24/2021"
+date: "5/26/2021"
 output:
   beamer_presentation:
     slide_level: 2
@@ -11,7 +11,7 @@ bibliography: references.bib
 ---
 
 ```{r, setup, echo=FALSE, warning = FALSE, message = FALSE, results = 'hide'}
-library(BoutrosFDR)
+library(boot)
 library(kableExtra)
 library(BoutrosLab.plotting.general)
 
@@ -26,15 +26,22 @@ cbPalette <- c(
 ```
 
 ## Overview
-
-## Background
-  - Random variable
-  - CDF
-  - iid
+  - Bootstrapping provides a way to quantify uncertainty of an estimator
+  - The basic idea is that we resample, with replacement, from our sample and use the distribution of those resamples to compute the standard error and confidence intervals.
 
 ## Random Variable
   - A random variable is a mapping (a function) $X : \Omega \to \mathbb R$ that assigns a real number $X(\omega)$ to each outcome $\omega$.
-  - Example: Flip a coin and let $X(\omega)$ be the 
+  - We almost never write $X(\Omega)$ but simply write $X$
+  - Example: Flip a coin and let $X$ be the number of heads shown
+  - The sample space is $\Omega = \{\{ H, H\}, \{ H, T\}, \{ T, H\}, \{T, T\} \}$
+
+```{r}
+coin.flip <- data.frame(coin1 = c('H', 'H', 'T', 'T'), coin2 = c('H', 'T', 'H', 'T'))
+coin.flip$numHeads <- rowSums(coin.flip == 'H')
+kable(coin.flip, col.names = c('coin 1', 'coin 2', 'Number of heads'), row.names = FALSE)
+```  
+  
+## Random Variable - Dice Example
   - The sample space is $\Omega = \{\{ 1, 1\}, \{ 1, 2\}, \{ 2, 1\}, \ldots \}$
   - $X(\{3,4\}) = 7$
 
@@ -42,10 +49,10 @@ cbPalette <- c(
 dice <- data.frame(die1 = unlist(lapply(1:6, rep, times = 6)), die2 = rep(1:6, 6))
 dice$sum <- rowSums(dice)
 dice <- dice[order(dice$sum), ]
-dice
+kable(head(dice), row.names = FALSE, col.names = c('die 1', 'die 2', 'Sum of dice'))
 ```
 
-## CDF
+## Cumulative Distribution Function
   For a random variable $X$, the **cumulative distribution function** (CDF), $F_X : \mathbb R \to [0,1]$ is
   $$
   F_X(x) = P(X \leq x)
@@ -53,23 +60,68 @@ dice
 
 ## Notation
   - If $X \sim F$ then we say that $X$ has distribution $F$.
-  - For example, $X \sim \exp(\lambda)$ mean that $X$ is exponentially distributed with
+  - For example, $X \sim \exp(\lambda)$ means that $X$ is exponentially distributed with rate $\lambda$ and
   $$
   F(x) = \begin{cases}
     1 - e^{-\lambda x} & x \geq 0\\
     0 & x < 0
   \end{cases}
   $$
-  
 
-
-## CDF Examples
+## CDF - Normal
 ```{r}
-BoutrosLab.plotting.general::
+x <- seq(-4, 4, length.out= 100)
+plot(x, pnorm(x), type = "l", ylab = "F(x)", main = "Normal distribution CDF", las = 1)
+lines(x, pnorm(x, sd = 1/2), lty = 2)
+lines(x, pnorm(x, sd = 2), lty = 3)
+legend(2, 0.4,
+       legend=c(
+         expression(paste(sigma, "=", 1)),
+         expression(paste(sigma, "=", 0.5)),
+          expression(paste(sigma, "=", 2))),
+       lty=1:3, cex=0.8)
+```
+
+## Empirical Distribution Function
+  - Let $X_1, \ldots, X_n \sim F$ be iid random variables
+  - Note that this means that $X$ has a distribution function $F$.
+  - We can estimate $F$ from the data by using the empirical distribution function $\hat{F}_n$.
+  - This distribution $\hat{F}_n$ puts probability of 1/n on each data point
+
+## Example - Normal Distribution
+```{r}
+set.seed(10)
+norm.sample <- rnorm(100)
+hist(norm.sample)
+```
+
+## Example - Normal (E)CDF
+```{r}
+N <- c(15, 200)
+set.seed(13)
+x <- rnorm(N[1])
+x.range <- seq(-3, 3, length.out = 1000)
+x.F <- pnorm(x.range)
+x.ecdf <- ecdf(x)
+
+par(mfrow=c(1,2), mai = c(1, 0.2, 0.5, 0), oma = c(0, 1.2, 0.5, 0.5), las = 1)
+plot(ecdf(x), verticals = TRUE, xlim = c(-3, 3), main = '')
+rug(x)
+lines(x.range, x.F, lty=2)
+axis(side = 2, seq(0, 1, by = 0.2))
+
+x <- rnorm(N[2])
+x.range <- seq(-3, 3, length.out = 1000)
+x.F <- pnorm(x.range)
+x.ecdf <- ecdf(x)
+plot(ecdf(x), verticals = TRUE, xlim = c(-3, 3), ylab = '', yaxt="n", main = '')
+rug(x)
+lines(x.range, x.F, lty=2)
+title(sprintf('(E)CDF of Normal Distribution n = %d, n = %d', N[1], N[2]), outer = TRUE, line = -1)
 ```
 
 ## Sampling Distribution
-  - Let $X_1, \ldots, \X_n$  be iid random variables
+  - Let $X_1, \ldots, X_n$  be iid random variables
   - A function of the data is called a **statistic**
   - The mean of these random variables is an example of a statistic
   $$
@@ -83,62 +135,143 @@ BoutrosLab.plotting.general::
   - We approximate $F$ using a statistical model, which is a set of distributions
     - Parameteric models use a set of distributions that can be parameterized by a finite set of parameters.
     - Example: Two-parameter model for a set of Gaussians
-    - Non-parametric models 
-
-## Empirical Distribution Function
-  - Let $X_1, \ldots, X_n \sim F$ be iid random variables
-  - Note that this means that $X$ has a distribution function $F$.
-  - We can estimate $F$ from the data by using the empirical distribution function $\hat{F}_n$.
-  - This distribution $\hat{F}_n$ puts mass of 1/n on each data point
-
-## Example - Cars
-```{r}
-hist(cars$dist)
-```
+    - Non-parametric models cannot be parameterized by a finite set of parameters
 
 ## Example
-```{r}
-plot(ecdf(cars$dist), verticals = TRUE)
-# Plot the ticks at the observations
-rug(cars$dist)
-```
+  - Say we have a sample of iid random variables $X_1, \ldots, X_n$.
+  - Computing the variance (and confidence intervals) of the mean is relatively easy.
+  - What about some arbitrary statistic: $T_n = g(X_1, \ldots, X_n)$?
+    - Option 1: Do some possibly complicated mathematics.
+    - Option 2: Bootstrap
 
 ## Bootstrap
+> "The population is to the sample as the sample is to the bootstrap samples." (Fox 2008)
+
   1. Compute $T_n = g(X_1, \ldots, X_n)$, our statistic of interest.
-  1. Draw a sample $X_1^*, \ldots, X_n^* \sim \hat{F}_n$
+  2. Draw a sample $X_1^*, \ldots, X_n^* \sim \hat{F}_n$
     - All this means is to sample $n$ times with replacement from the original data $X_1, \ldots, X_n$.
-  2. Compute our statistic of interest $T_n^* = g(X_1^*, \ldots, X_n^*)$
-  3. Repeat $B$ times, to get $T_{n,1}^*, \ldots, T_{n,B}^*$
-  4. Compute the variance of the statistic $v_{\text{boot}}$, and standard error $\hat{\text{se}}_{\text{boot}} = \sqrt{v_{\text{boot}}}$
+  3. Compute our statistic of interest $T_n^* = g(X_1^*, \ldots, X_n^*)$
+  4. Repeat $B$ times, to get $T_{n,1}^*, \ldots, T_{n,B}^*$
+  5. Compute the variance of $T_{n,1}^*, \ldots, T_{n,B}^*$ to get $v_{\text{boot}}$, and standard error $\hat{\text{se}}_{\text{boot}} = \sqrt{v_{\text{boot}}}$
+  
+## Bootstrap
+  - Bootstraping does not improve our original estimate in any way
+  - The idea is to provide a way of estimating the uncertainty in the computed statistic
+  - Need to have a fairly large sample to get accurate estimation, especially if the statistic depends on a small number of observations (like the median).
+  - Highly skewed distributions may not work well for bootstrapping without a transformation
   
 ## Approximations
 $$
 \operatorname{Var}_F(T_n)  \approx \operatorname{Var}_{\hat{F}_n} (T_n) \approx v_{\text{boot}}
 $$
-## Example
-```{r}
-x <- rexp(15)
-x.range <- seq(0, 8, length.out = 1000)
-x.F <- pexp(x.range)
-x.ecdf <- ecdf(x)
 
-plot(ecdf(x), verticals = TRUE)
-rug(x)
-lines(x.range, x.F, lty=2)
+  - Multiple approximations are happening during bootstrapping (different sources of error)
+  - First we approximate $F$ with $\hat{F}_n$. Error depends on how big the sample is.
+  - Approximating $\operatorname{Var}_{\hat{F}_n} (T_n)$ by $v_{\text{boot}}$ depends on the size of the bootstrap samples $B$.
+
+## Bias
+The bias of an estimator $\hat{\theta}$ is
+$$
+\operatorname{B} = E(\hat \theta) - \theta
+$$
+We can estimate the bias with 
+$$
+\operatorname{B} = E_{\hat F}(\hat{\theta^*}) - \hat \theta
+$$
+That is, the difference between the mean of the bootstrap distribution and the observed statistic.
+
+## Bias
+```{r}
+x <- rexp(20, rate = 1/2)
+boot.exp <- function(data, indices) {
+  d <- x[indices]
+  mean(d)
+}
+results <- boot(data=x, statistic=boot.exp, R=1e4)
+results
 ```
 
-## Bootstrap confidence intervals
-https://blog.methodsconsultants.com/posts/understanding-bootstrap-confidence-interval-output-from-the-r-boot-package/
+## Bootstrap Confidence Intervals
+  - Once we have $\hat{\text{se}}_{\text{boot}}$ how do we compute a confidence interval?
+
+  - **Normal** Interval: Don't use unless distribution of $T_n$ is close to normal
+  $$
+  T_n \pm z_{\alpha/2} \hat{\text{se}}_{\text{boot}}
+  $$
+
+  - **Percentile** Interval: Simply use the $\alpha / 2$ and $1 - \alpha / 2$ quantiles of the bootstrap sample.
+    - For small samples, may not be accurate
+  - **Basic** (Pivotal) Interval: Incorporate the bias into the confidence interval.
+  - **Studentized** Interval: Need to compute the standard error of each of the bootstrap samples
+  - **Bias Corrected, Accelerated (Bca)**: estimate a bias and acceleration term.
+    - Corrects for skew in sampling distribution.
+    - Requires a large number of bootstrap samples
 
 ## Bootstrap correlation coefficient
 ```{r}
-library(boot)
 boot.cor <- function(data, indices) {
   d <- data[indices,]
   cor(d$wt, d$mpg, method = "spearman")
 }
 
-# cor(mtcars$wt, mtcars$mpg)
 results <- boot(data=mtcars, statistic=boot.cor, R=1000)
-boot.ci(results, type = "bca")
+results
 ```
+
+## Bootstrap Confidence Intervals
+\small
+```{r}
+boot.ci(results, type = c("basic", "bca"))
+```
+\normalsize
+
+## Other version of the bootstrap
+What we have been doing is the nonparameteric bootstrap.
+ Other options include
+ 
+ - **Semiparametric bootstrap**: Add noise to the resamples to produce non-identical resamples
+ - **Parametric bootstrap**: Assume the data comes from a known distribution and estimate the parameters given the data. Use this estimated distribution to draw samples.
+ - **Block bootstrap**: When the data is no longer iid, and correlations between data or errors exists.
+   - For example, bootstrap on time-series data
+   - See `boot::tsboot`
+
+
+
+## Mann-Whitney U Test
+
+
+## Permutation Tests
+  - A permutation test 
+  
+## Simple Permutation Tests
+Comparing two groups with vastly different spread
+```{r}
+x <- data.frame(x = rnorm(30, mean = -2, sd = 4), group = 1)
+y <- data.frame(x = rnorm(30, mean = 2, sd = 0.5), group = 2)
+data <- rbind(x, y)
+data$group <- as.factor(data$group)
+create.boxplot(
+  formula =  x ~ group,
+  data = data
+)
+
+mean(x$x) - mean(y$x)
+
+res <- replicate(1000, {
+  s <- sample(data$x)
+  mean(s[1:30]) - mean(s[31:60])
+})
+
+hist(res)
+```
+
+## Wilcoxon, Mann-Whitney
+https://blog.minitab.com/en/adventures-in-statistics-2/choosing-between-a-nonparametric-test-and-a-parametric-test
+
+## Smoothing
+...
+
+## References
+  - [Bootstrap confidence intervals](https://blog.methodsconsultants.com/posts/understanding-bootstrap-confidence-interval-output-from-the-r-boot-package/)
+  - [Permutation Tests](https://faculty.washington.edu/kenrice/sisg/SISG-08-06.pdf)
+  - [What Teachers Should Know About the Bootstrap: Resampling in the Undergraduate Statistics Curriculum](https://www.tandfonline.com/doi/full/10.1080/00031305.2015.1089789)
