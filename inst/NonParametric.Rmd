@@ -1,5 +1,5 @@
 ---
-title: "Bootstrapping"
+title: "Bootstrapping and Resampling Methods"
 author: "Stefan Eng"
 date: "5/26/2021"
 output:
@@ -27,8 +27,18 @@ cbPalette <- c(
 ```
 
 ## Overview
-  - Bootstrapping provides a way to quantify uncertainty of an estimator
+  - Resampling methods generally fall into one of 3 categories
+  1. Estimating the uncertainty of an estimator (bootstrapping, jackknife)
+  2. Performing significance tests by permuting data (permutation/randomization tests)
+  3. Validating models (bootstrapping, cross-validation)
+  - Resampling can be done with replacement or without replacement, depending on the purpose of the resampling method.
+
+
+## Bootstrapping Overview
+> "The population is to the sample as the sample is to the bootstrap samples." (Fox 2008)
+
   - The basic idea is that we resample, with replacement, from our sample and use the distribution of those resamples to compute the standard error and confidence intervals.
+
 
 ## Random Variable
   - A random variable is a mapping (a function) $X : \Omega \to \mathbb R$ that assigns a real number $X(\omega)$ to each outcome $\omega$.
@@ -134,7 +144,7 @@ title(sprintf('(E)CDF of Normal Distribution n = %d, n = %d', N[1], N[2]), outer
 ## Statistical Inference
   - Given a sample $X_1, \ldots, X_n \sim F$ we want to infer the distribution $F$.
   - We approximate $F$ using a statistical model, which is a set of distributions
-    - Parameteric models use a set of distributions that can be parameterized by a finite set of parameters.
+    - Parametric models use a set of distributions that can be parameterized by a finite set of parameters.
     - Example: Two-parameter model for a set of Gaussians
     - Non-parametric models cannot be parameterized by a finite set of parameters
 
@@ -177,21 +187,21 @@ $$
 $$
 We can estimate the bias with 
 $$
-\operatorname{B} = E_{\hat F}(\hat{\theta^*}) - \hat \theta
+\hat{\operatorname{B}} = E_{\hat F}(\hat{\theta^*}) - \hat \theta
 $$
 That is, the difference between the mean of the bootstrap distribution and the observed statistic.
 
 ## Bootstrap Confidence Intervals
   - Once we have $\hat{\text{se}}_{\text{boot}}$ how do we compute a confidence interval?
 
-  - **Normal** Interval: Don't use unless distribution of $T_n$ is close to normal.
+  - **Normal** Interval: Don't use unless distribution of $T_n$ is close to normal. Can also replace $z_{\alpha/2}$ with $t_{\alpha/2, n - 1}$ for more accurate intervals.
   $$
   T_n \pm z_{\alpha/2} \hat{\text{se}}_{\text{boot}}
   $$
 
   - **Percentile** Interval: Simply use the $\alpha / 2$ and $1 - \alpha / 2$ quantiles of the bootstrap sample.
     - For small samples, may not be accurate
-    - Benefit is that they are transformation invariants, you can apply a monotone transformation to the data and get the same CI after inverse transformation.
+    - Benefit is that they are transformation invariant, you can apply a monotone transformation to the data and get the same CI after inverse transformation.
     - In general the following methods are more accurate though
     
 ## Bootstrap Confidence Intervals
@@ -200,28 +210,7 @@ That is, the difference between the mean of the bootstrap distribution and the o
   - **Bias Corrected, Accelerated (Bca)**: estimate a bias and acceleration term.
     - Corrects for skew in sampling distribution.
     - Requires a large number of bootstrap samples
-
-## LSAT Scores and GPAs (Efron and Tibshirani 1993)
-An example dataset with students' LSAT and GPAs (n = 15). Shown are the first 5 students.
-```{r}
-lsat.gpa <- read.table(text = "student	lsat	gpa
-1	576	3.39
-2	635	3.30
-3	558	2.81
-4	578	3.03
-5	666	3.44
-6	580	3.07
-7	555	3.00
-8	661	3.43
-9	651	3.36
-10	605	3.13
-11	653	3.12
-12	575	2.74
-13	545	2.76
-14	572	2.88
-15	594	2.96", header = TRUE)
-kable(head(lsat.gpa, n = 5))
-```
+    - Translation invariant
 
 ## Bootstrap Example
   - `mtcars` built-in data set in R. 
@@ -256,7 +245,7 @@ plot(results)
 ## Bootstrap Confidence Intervals
 \small
 ```{r, echo = TRUE}
-boot.ci(results, type = c("basic", "bca"))
+boot.ci(results, type = c("norm", "perc", "basic", "bca"))
 ```
 \normalsize
 
@@ -273,7 +262,7 @@ plot(results.R2)
 
 ## Bootstrap Confidence Interval
 ```{r}
-boot.ci(results.R2, type = c("basic", "bca"))
+boot.ci(results.R2, type = c("norm", "perc", "basic", "bca"))
 ```
 
 ## Bootstrap Linear Models
@@ -284,12 +273,26 @@ confint(mpg.mod)
 ```
 
 ## Bootstrap Linear Models
-```{r, echo = TRUE}
+```{r, echo = TRUE, eval = FALSE}
 boot.lm <- function(formula, data, indices) {
   d <- data[indices,]
   coef(lm(formula, data = d))
 }
-results.lm <- boot(data=mtcars, statistic=boot.lm, R=1000, formula = mpg ~ wt + disp)
+results.lm <- boot(data=mtcars, statistic=boot.lm, R=1000,
+                   formula = mpg ~ wt + disp)
+
+# Confidence interval for wt coefficient
+boot.ci(results.lm, type = c("basic", "bca"), index = 2)
+```
+
+## Bootstrap Linear Models
+```{r}
+boot.lm <- function(formula, data, indices) {
+  d <- data[indices,]
+  coef(lm(formula, data = d))
+}
+results.lm <- boot(data=mtcars, statistic=boot.lm, R=1000,
+                   formula = mpg ~ wt + disp)
 
 # Confidence interval for wt coefficient
 boot.ci(results.lm, type = c("basic", "bca"), index = 2)
@@ -304,12 +307,75 @@ What we have been doing is the nonparameteric bootstrap.
  - **Block bootstrap**: When the data is no longer iid, and correlations between data or errors exists.
    - For example, bootstrap on time-series data
    - See `boot::tsboot`
+   
+## What can go wrong?
+  - If the data is skewed, need more bootstrap samples, and choose the confidence interval wisely
+    - Very difficult in any situation to get CIs that are accurate
+  - Need to sample as the original data was sampled
+    - This may involve resampling within groups
+  - Estimating parameters at the end of the parameter space
+  - Failure of $\hat{F}$ to estimate $F$.
+  
+## Failing Example
+$X_1, \ldots, X_n \sim \text{Uniform}(0, \theta)$. We want to estimate $\theta$ which has an MLE of
+$$
+\hat{\theta} = X_{\max} = \max \{ X_1, \ldots, X_n \}
+$$
+and it can be shown that
+$$
+P(X_{\max} \leq x) = F_{X_{\max}}(x) = \left( \frac{x}{\theta}\right)^n
+$$
+
+## Uniform Max True Distribution
+```{r, eval = FALSE, echo = TRUE}
+true.dist <- replicate(1000, {
+  x <- runif(50)
+  max(x)
+})
+hist(true.dist)
+```
+
+## Uniform Max True Distribution
+```{r}
+true.dist <- replicate(1000, {
+  x <- runif(50)
+  max(x)
+})
+hist(true.dist)
+```
+
+## Bootstrap Uniform Max
+```{r, eval = FALSE, echo = TRUE}
+x <- runif(50)
+boot.max <- function(data, indices) max(data[indices])
+
+results.max <- boot(data=x, statistic=boot.max, R=1000)
+plot(results.max)
+```
+
+## Bootstrap Uniform Max
+```{r}
+x <- runif(50)
+boot.max <- function(data, indices) max(data[indices])
+
+results.max <- boot(data=x, statistic=boot.max, R=1000)
+plot(results.max)
+```
 
 ## Permutation Tests
-  
-```{r, eval = FALSE}
-x <- data.frame(x = rnorm(30, mean = -2, sd = 4), group = 1)
-y <- data.frame(x = rnorm(30, mean = 2, sd = 0.5), group = 2)
+  - We have seen how resampling can be used to quantify the uncertainty of an estimate
+  - Resampling methods can also be used to generate a null-distribution for a hypothesis test.
+  - Definition: **p-value** - The probability of obtaining test results *at least as extreme* as the observed results.
+    - Easier conceptually to reason about with permutation tests than parameteric tests.
+
+## Simple Example - Comparing Means in Two Groups
+  - Two groups (each with 15 samples, unpaired) of normal distributions: $N(\mu_0 = 0,1)$ and $N(\mu_1 = 1, 1)$.
+  - The null-hypthesis is that $\mu_0 = \mu_1$, one-sided alternative is $\mu_0 \not = \mu_1$.
+```{r, out.height='50%'}
+set.seed(13)
+n <- 15
+x <- data.frame(x = rnorm(n, mean = 0), group = 1)
+y <- data.frame(x = rnorm(n, mean = 1), group = 2)
 data <- rbind(x, y)
 data$group <- as.factor(data$group)
 create.boxplot(
@@ -317,22 +383,70 @@ create.boxplot(
   data = data
 )
 
-mean(x$x) - mean(y$x)
-
-res <- replicate(1000, {
-  s <- sample(data$x)
-  mean(s[1:30]) - mean(s[31:60])
-})
-
-hist(res)
+res <- t.test(x = x$x, y = y$x, paired = FALSE, var.equal = TRUE)
 ```
 
-## Wilcoxon, Mann-Whitney
-https://blog.minitab.com/en/adventures-in-statistics-2/choosing-between-a-nonparametric-test-and-a-parametric-test
+## Simple Example - Comparing Means in Two Groups
+  - The difference in mean is `r round(mean(y$x) - mean(x$x), 2)`
+  - Can perform a t-test (parametric)
+    - t-statistic = `r round(res$statistic, 2)`
+    - degrees of freedom $= 2n - 2 = 28$
+  - Can also use a permutation test
 
-## Smoothing
-...
+## Permutation test example
+  - Take the original data, shuffle (resample without replacement) either the data or the label
+  - Compute the test statistic for each permutation
+  - This distribution is the null distribution
+  
+## Permutation - Null distribution
+```{r}
+test.stat <- mean(y$x) - mean(x$x)
+null.diff <- replicate(1000, {
+  group <- sample(data$group)
+  mean(data$x[group == 1]) - mean(data$x[group == 2])
+})
 
+hist(null.diff, main = 'Null distribution for difference of means')
+abline(v = test.stat, col = "red" , lty = 2)
+```
+
+## Permutation Test
+  - We can then compute the two-sided p-value by computing how many of the (absolute) null-differences are greater than the (absolute value) of the observed value
+
+```{r}
+hist(abs(null.diff), main = 'Null distribution for abs difference of means')
+abline(v = abs(test.stat), col = "red" , lty = 2)
+more.extreme <- sum(abs(null.diff) > abs(test.stat))
+b <- length(null.diff)
+p.value <- more.extreme / b
+text(1, 100, sprintf('p = %d/%d = %0.3f', more.extreme, b, p.value, 2))
+```
+
+## Permutation Test - two-sided
+  - Using a two-sided test in other cases is not as straightforward
+  - What is meant by "more extreme"?
+  - In the symmetric case, can just multiple by 2 times the smallest p-value
+    - When the distribution is asymmetric, this can be completely incorrect and other methods need to be considered.
+
+## Example: Null is true (Rice 2008)
+![Null is true](./true_null.png)
+
+## Example: Null is false (Rice 2008)
+![Null is false](./false_null.png)
+
+## Permutation Tests
+  - Using this simple example, it is easy to do either the t-test or the permutation test
+  - What parametric test would you do if we were comparing the medians across the groups? What about the skew between two groups?
+    - Permutation test simplest option
+  - Even if sample size is quite large, if the data is largely skewed then t-test may completely inaccurate
+    - $n \geq 5000$ for CLT to be accurate on exponential population
+    
+## Summary
+  - Resampling methods are a simple way of:
+  1. Estimating the uncertainty of an estimator (bootstrapping, jackknife)
+  2. Performing significance tests by permuting data (permutation/randomization tests)
+  3. Validating models (bootstrapping, cross-validation)
+  
 ## References
   - [Bootstrap confidence intervals](https://blog.methodsconsultants.com/posts/understanding-bootstrap-confidence-interval-output-from-the-r-boot-package/)
   - [Permutation Tests](https://faculty.washington.edu/kenrice/sisg/SISG-08-06.pdf)
